@@ -86,6 +86,7 @@ namespace EvolveDb
         private IMigrationLoader? _migrationLoader;
 
         public string RepeatableMigrationQueueSettingName { get; set; }
+        public string RepeatableMigrationQueueFileSettingName { get; set; }
 
         public IMigrationLoader MigrationLoader
         {
