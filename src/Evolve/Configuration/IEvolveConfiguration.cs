@@ -218,5 +218,15 @@ namespace EvolveDb.Configuration
         ///     that replaces the built-in ones (<see cref="FileMigrationLoader"/> <see cref="EmbeddedResourceMigrationLoader"/>)
         /// </summary>
         IMigrationLoader MigrationLoader { get; }
+
+        /// <summary>
+        ///     Setting name for specifying the order of repeated migration scripts
+        /// </summary>
+        public string RepeatableMigrationQueueSettingName { get; }
+
+        /// <summary>
+        ///     Setting name for specifying the order of repeated migration scripts from file
+        /// </summary>
+        public string RepeatableMigrationQueueFileSettingName { get; set; }
     }
 }

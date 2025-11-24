@@ -84,5 +84,20 @@ namespace EvolveDb.Utilities
 
             return migrations;
         }
+
+        /// <summary>
+        /// Extension method for swapping scripts
+        /// </summary>
+        /// <param name="list"> Current list</param>
+        /// <param name="index"> Index element</param>
+        public static void MoveItemAtIndexToFront<T>(this List<T> list, int index)
+        {
+            if (index > 0)
+            {
+                T item = list[index];
+                list.RemoveAt(index);
+                list.Insert(0, item);
+            }
+        }
     }
 }

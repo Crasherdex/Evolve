@@ -53,5 +53,9 @@ namespace EvolveDb.Tests
             }
             set { _migrationLoader = value; }
         }
+
+        public string RepeatableMigrationQueueSettingName { get; set; } = string.Empty;
+
+        public string RepeatableMigrationQueueFileSettingName { get; set; } = string.Empty;
     }
 }

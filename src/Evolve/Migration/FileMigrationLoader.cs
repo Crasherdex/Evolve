@@ -4,8 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using EvolveDb.Configuration;
+using EvolveDb.Dialect.Cassandra;
 using EvolveDb.Metadata;
 using EvolveDb.Utilities;
+using Microsoft.Extensions.Configuration;
 
 namespace EvolveDb.Migration
 {
@@ -17,14 +19,20 @@ namespace EvolveDb.Migration
     {
         private const string InvalidMigrationScriptLocation = "Invalid migration script location: {0}.";
         protected readonly IEvolveConfiguration _options;
+        private readonly IConfiguration? _configuration;
+        private readonly Action<string> _log;
 
         /// <summary>
         ///     Initialize a new instance of the <see cref="FileMigrationLoader"/> class.
         /// </summary>
         /// <param name="options"> Evolve configuration </param>
-        public FileMigrationLoader(in IEvolveConfiguration options)
+        /// <param name="configuration"> Custom configuration</param>
+        /// <param name="logDelegate"> An optional logger. </param>
+        public FileMigrationLoader(in IEvolveConfiguration options, IConfiguration? configuration = null, Action<string>? logDelegate = null)
         {
             _options = Check.NotNull(options, nameof(options));
+            _configuration = configuration;
+            _log = logDelegate ?? new Action<string>((msg) => { });
         }
 
         /// <summary>
@@ -103,10 +111,37 @@ namespace EvolveDb.Migration
                          .ForEach(x => migrations.Add(x));
             }
 
-            return migrations.CheckForDuplicateName()
+            var orderedMigrations = migrations.CheckForDuplicateName()
                              .OrderBy(x => x.Name)
                              .Cast<MigrationScript>()
                              .ToList();
+
+            if (_configuration == null) return orderedMigrations;
+
+            var queueFileSettingName = _options.RepeatableMigrationQueueFileSettingName;
+            var queueSettingName = _options.RepeatableMigrationQueueSettingName;
+
+            if (!string.IsNullOrWhiteSpace(queueFileSettingName))
+            {
+                var filePath = _configuration.GetSection(queueFileSettingName).Value;
+                if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+                {
+                    _log($"File with ordered repeatable scripts located at path ({filePath}) not found");
+                    return orderedMigrations;
+                }
+                var lines = File.ReadAllLines(filePath).Reverse();
+                MoveMigrationsToFront(lines, orderedMigrations);
+            }
+            else if (!string.IsNullOrWhiteSpace(queueSettingName))
+            {
+                var names = _configuration.GetSection(queueSettingName).GetChildren()
+                    .Select(x => x.Value)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Reverse();
+                MoveMigrationsToFront(names, orderedMigrations);
+            }
+
+            return orderedMigrations;
         }
 
         private static DirectoryInfo ResolveDirectory(string location)
@@ -145,6 +180,18 @@ namespace EvolveDb.Migration
             {
                 return !attributes.HasFlag(FileAttributes.Hidden)
                 && !attributes.HasFlag(FileAttributes.System);
+            }
+        }
+
+        private static void MoveMigrationsToFront(IEnumerable<string?> names, List<MigrationScript> migrations)
+        {
+            foreach (var name in names)
+            {
+                var index = migrations.FindIndex(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                if (index >= 0)
+                {
+                    migrations.MoveItemAtIndexToFront(index);
+                }
             }
         }
     }

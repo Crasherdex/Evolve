@@ -12,9 +12,11 @@ using ConsoleTables;
 using EvolveDb.Configuration;
 using EvolveDb.Connection;
 using EvolveDb.Dialect;
+using EvolveDb.Dialect.Cassandra;
 using EvolveDb.Metadata;
 using EvolveDb.Migration;
 using EvolveDb.Utilities;
+using Microsoft.Extensions.Configuration;
 
 [assembly: InternalsVisibleTo("Evolve.Tests")]
 namespace EvolveDb
@@ -25,6 +27,7 @@ namespace EvolveDb
 
         private readonly DbConnection _userCnn;
         private readonly Action<string> _log;
+        private readonly IConfiguration _configuration;
 
         #endregion
 
@@ -34,13 +37,15 @@ namespace EvolveDb
         /// <param name="dbConnection"> The database connection used to apply the migrations. </param>
         /// <param name="logDelegate"> An optional logger. </param>
         /// <param name="dbms"> Optional default dbms</param>
-        public Evolve(DbConnection dbConnection, Action<string>? logDelegate = null, DBMS? dbms = null)
+        /// <param name="configuration"> Custom configuration</param>
+        public Evolve(DbConnection dbConnection, Action<string>? logDelegate = null, DBMS? dbms = null, IConfiguration? configuration = null)
         {
             _userCnn = Check.NotNull(dbConnection, nameof(dbConnection));
             _log = logDelegate ?? new Action<string>((msg) => { });
 
             using var evolveCnn = new WrappedConnection(_userCnn).Validate();
             DBMS = dbms ?? evolveCnn.GetDatabaseServerType();
+            _configuration = configuration;
         }
 
         #region IEvolveConfiguration
@@ -79,13 +84,16 @@ namespace EvolveDb
         public bool SkipNextMigrations { get; set; } = false;
 
         private IMigrationLoader? _migrationLoader;
+
+        public string RepeatableMigrationQueueSettingName { get; set; }
+
         public IMigrationLoader MigrationLoader
         {
             get
             {
                 return _migrationLoader ?? (EmbeddedResourceAssemblies.Any()
                     ? new EmbeddedResourceMigrationLoader(Options)
-                    : new FileMigrationLoader(Options));
+                    : new FileMigrationLoader(Options, _configuration));
             }
             set { _migrationLoader = value; }
         }
